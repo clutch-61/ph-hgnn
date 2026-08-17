@@ -7,10 +7,10 @@ from torch import nn
 
 from ph_hgnn.models.backbones import HypergraphEncoder
 from ph_hgnn.models.topology import (
-    PersLayEncoder,
     PersistenceDeepSetEncoder,
     PersistenceImageEncoder,
     PersistenceStatsEncoder,
+    PersLayEncoder,
 )
 from ph_hgnn.topology.persistence import PersistenceDiagrams
 from ph_hgnn.types import HypergraphSample

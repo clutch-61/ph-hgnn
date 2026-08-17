@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from enum import Enum
+from enum import StrEnum
 
 import torch
 
@@ -10,7 +10,7 @@ from ph_hgnn.types import HypergraphSample
 FilteredSimplex = tuple[tuple[int, ...], float]
 
 
-class ComplexKind(str, Enum):
+class ComplexKind(StrEnum):
     SCC = "scc"
     RESBS = "resbs"
     RELBS = "relbs"
