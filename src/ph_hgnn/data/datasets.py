@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 
 from ph_hgnn.types import DatasetBundle, HypergraphSample
@@ -18,6 +19,7 @@ class DatasetSpec:
     upstream_name: str
     source: str
     num_classes: int
+    split_protocol: str = "holdout"
 
 
 DATASET_SPECS: dict[str, DatasetSpec] = {
@@ -30,10 +32,38 @@ DATASET_SPECS: dict[str, DatasetSpec] = {
         "imdb_dir_genre", "IMDB_dir_genre", "https://github.com/iMoonLab/HIC", 3
     ),
     "steam_player": DatasetSpec(
-        "steam_player", "stream_player", "https://github.com/iMoonLab/HIC", 2
+        "steam_player", "steam_player", "https://github.com/iMoonLab/HIC", 2
     ),
     "twitter_friend": DatasetSpec(
         "twitter_friend", "twitter_friend", "https://github.com/iMoonLab/HIC", 2
+    ),
+    "highschool": DatasetSpec(
+        "highschool",
+        "Highschool",
+        "https://sites.google.com/view/mehmetaktas/datasets",
+        2,
+        split_protocol="kfold10",
+    ),
+    "primary": DatasetSpec(
+        "primary",
+        "Primary",
+        "https://sites.google.com/view/mehmetaktas/datasets",
+        2,
+        split_protocol="kfold10",
+    ),
+    "makam": DatasetSpec(
+        "makam",
+        "Makam",
+        "https://sites.google.com/view/mehmetaktas/datasets",
+        2,
+        split_protocol="kfold10",
+    ),
+    "bbc": DatasetSpec(
+        "bbc",
+        "BBC",
+        "https://sites.google.com/view/mehmetaktas/datasets",
+        5,
+        split_protocol="kfold10",
     ),
 }
 
@@ -106,21 +136,60 @@ def stratified_split(
     return tuple(map(int, train)), tuple(map(int, val)), tuple(map(int, test))
 
 
-def load_json_dataset(path: Path, name: str, seed: int = 0) -> DatasetBundle:
+def _split_kfold(
+    labels: list[int],
+    seed: int,
+    fold_index: int,
+    n_splits: int = 10,
+) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+    if n_splits < 2:
+        raise ValueError("n_splits must be at least 2")
+    kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    folds = list(kfold.split(np.arange(len(labels)), labels))
+    if fold_index < 0 or fold_index >= len(folds):
+        raise ValueError(f"fold_index must be in [0, {len(folds) - 1}]")
+    remainder, test = folds[fold_index]
+    remainder_labels = np.asarray(labels)[remainder]
+    train, val = train_test_split(
+        remainder,
+        test_size=0.1,
+        random_state=seed,
+        stratify=remainder_labels,
+    )
+    return tuple(map(int, train)), tuple(map(int, val)), tuple(map(int, test))
+
+
+def load_json_dataset(
+    path: Path,
+    name: str,
+    seed: int = 0,
+    split_protocol: str = "holdout",
+    fold_index: int = 0,
+) -> DatasetBundle:
     """Load the safe interchange format documented in ``data/README.md``."""
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     records = payload["samples"]
     samples = tuple(_parse_sample(record, i) for i, record in enumerate(records))
     labels = [sample.y for sample in samples]
-    train, val, test = stratified_split(labels, seed=seed)
+    if split_protocol == "holdout":
+        train, val, test = stratified_split(labels, seed=seed)
+    elif split_protocol == "kfold10":
+        train, val, test = _split_kfold(labels, seed=seed, fold_index=fold_index)
+    else:
+        raise ValueError(f"unknown split protocol: {split_protocol}")
     inferred_classes = max(labels) + 1
     bundle = DatasetBundle(name, samples, train, val, test, inferred_classes)
     bundle.validate()
     return bundle
 
 
-def load_dataset(name: str, root: Path, seed: int = 0) -> DatasetBundle:
+def load_dataset(
+    name: str,
+    root: Path,
+    seed: int = 0,
+    fold_index: int = 0,
+) -> DatasetBundle:
     if name not in DATASET_SPECS:
         choices = ", ".join(sorted(DATASET_SPECS))
         raise KeyError(f"unknown dataset {name!r}; choose one of: {choices}")
@@ -131,4 +200,10 @@ def load_dataset(name: str, root: Path, seed: int = 0) -> DatasetBundle:
             f"{path} is missing. Export {spec.upstream_name!r} from {spec.source} "
             "to the safe JSON format described in data/README.md."
         )
-    return load_json_dataset(path, name=name, seed=seed)
+    return load_json_dataset(
+        path,
+        name=name,
+        seed=seed,
+        split_protocol=DATASET_SPECS[name].split_protocol,
+        fold_index=fold_index,
+    )

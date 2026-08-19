@@ -10,22 +10,38 @@ from pathlib import Path
 import numpy as np
 
 
+def _run_key(config: dict[str, object]) -> str:
+    fields = (
+        "backbone",
+        "num_layers",
+        "complex_kind",
+        "fusion",
+        "topology_encoder",
+    )
+    return "|".join(str(config.get(field, "na")) for field in fields)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=Path, default=Path("runs"))
     parser.add_argument("--output", type=Path, default=Path("artifacts/summary.json"))
+    parser.add_argument("--pattern", default="**/metrics.json")
     args = parser.parse_args()
     groups: dict[str, list[tuple[float, float]]] = defaultdict(list)
-    for path in args.runs.glob("**/metrics.json"):
+    seeds: dict[str, set[int]] = defaultdict(set)
+    folds: dict[str, set[int]] = defaultdict(set)
+    for path in args.runs.glob(args.pattern):
         record = json.loads(path.read_text(encoding="utf-8"))
         config = record["config"]
-        key = "|".join(
-            str(config[field])
-            for field in ("backbone", "num_layers", "complex_kind", "fusion")
-        )
-        groups[f"{record['dataset']}|{key}"].append(
+        key = _run_key(config)
+        dataset_key = f"{record['dataset']}|{key}"
+        groups[dataset_key].append(
             (record["test"]["accuracy"], record["test"]["macro_f1"])
         )
+        seeds[dataset_key].add(int(config["seed"]))
+        if "-fold" in path.parent.name:
+            fold = int(path.parent.name.rsplit("-fold", maxsplit=1)[1])
+            folds[dataset_key].add(fold)
     summary: dict[str, dict[str, float | int]] = {}
     for key, values in groups.items():
         array = np.asarray(values)
@@ -43,6 +59,8 @@ def main() -> None:
             "macro_f1_ci95": float(array[:, 1].std(ddof=1) * ci_scale)
             if count > 1
             else 0.0,
+            "seeds": len(seeds[key]),
+            "folds": len(folds[key]),
         }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")

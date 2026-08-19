@@ -27,9 +27,15 @@ mean-incident-hyperedge-size features. Files belong in `data/processed` using:
 - `imdb_dir_genre.json`
 - `steam_player.json`
 - `twitter_friend.json`
+- `highschool.json`
+- `primary.json`
+- `makam.json`
+- `bbc.json`
 
-The loader rejects overlapping or incomplete splits and never deserializes
-pickle objects. The source repositories are:
+The loader uses 80/10/10 holdout splits for HIC/DHG-Bench datasets and 10-fold
+CV protocol (`--fold 0..9`) for Aktas datasets. It rejects overlapping or
+incomplete splits and never deserializes pickle objects. The source repositories are:
 
 - https://github.com/iMoonLab/HIC
 - https://github.com/Coco-Hut/DHG-Bench
+- https://sites.google.com/view/mehmetaktas/datasets

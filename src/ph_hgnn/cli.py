@@ -29,6 +29,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", default="rhg_toy")
     parser.add_argument("--data-root", type=Path, default=Path("data/processed"))
     parser.add_argument("--run-root", type=Path, default=Path("runs"))
+    parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--quick", action="store_true")
     return parser
 
@@ -43,14 +44,22 @@ def main() -> None:
         config = replace(config, epochs=2, patience=2, hidden_dim=16, topo_dim=16)
     if args.dataset == "rhg_toy":
         dataset = make_rhg_toy(num_per_class=10, seed=config.seed)
+        fold_suffix = ""
     elif args.dataset == "local_global_witnesses":
         dataset = make_local_global_witnesses(
             depth=config.num_layers, num_pairs=10, seed=config.seed
         )
+        fold_suffix = ""
     else:
-        dataset = load_dataset(args.dataset, args.data_root, seed=config.seed)
+        dataset = load_dataset(
+            args.dataset,
+            args.data_root,
+            seed=config.seed,
+            fold_index=args.fold,
+        )
+        fold_suffix = f"-fold{args.fold}"
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    run_dir = args.run_root / dataset.name / f"{timestamp}-seed{config.seed}"
+    run_dir = args.run_root / dataset.name / f"{timestamp}-seed{config.seed}{fold_suffix}"
     result = run_experiment(dataset, config, project_root, run_dir)
     print(json.dumps({"run_dir": str(run_dir), "test": result["test"]}, indent=2))
 

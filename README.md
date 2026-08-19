@@ -19,8 +19,10 @@ hypergraph -> SCC/ResBS/RelBS -> H0/H1 -> DeepSet/
 
 The implementation includes:
 
-- safe adapters for the six HIC/DHG-Bench hypergraph-level datasets;
-- deterministic stratified 80/10/10 splits;
+- safe adapters for six HIC/DHG-Bench hypergraph-level datasets plus Aktas's
+  four datasets (Highschool/Primary/Makam/BBC);
+- deterministic stratified 80/10/10 splits for HIC/DHG-Bench and 10-fold CV
+  protocol for Aktas datasets;
 - SCC, restricted barycentric, relative barycentric H0/H1, and incidence
   control constructions;
 - atomic, content-addressed persistence cache;
@@ -71,10 +73,26 @@ Run:
 uv run ph-hgnn --config configs/base.yaml --dataset rhg_toy
 uv run ph-hgnn --config configs/base.yaml --dataset local_global_witnesses
 uv run ph-hgnn --config configs/base.yaml --dataset rhg_3
+uv run ph-hgnn --config configs/base.yaml --dataset highschool --fold 0
 ```
 
 For real data, follow `data/README.md`. Do not commit upstream datasets or
 reference PDFs.
+
+Convert HIC `.txt` files after cloning upstream data locally:
+
+```bash
+git clone --depth 1 https://github.com/iMoonLab/HIC.git data/raw/HIC
+uv run python scripts/convert_hic_datasets.py --datasets rhg_3 rhg_10
+```
+
+Batch runs:
+
+```bash
+uv run python scripts/run_sweep.py --dataset rhg_3 --seeds 0 1 2 3 4
+uv run python scripts/run_sweep.py --dataset highschool --seeds 0 1 2 --folds 0 1 2 3 4 5 6 7 8 9
+uv run python scripts/aggregate_results.py --runs runs --output artifacts/summary.json
+```
 
 ## Research safeguards
 
